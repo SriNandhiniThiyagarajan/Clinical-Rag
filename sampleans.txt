@@ -1,0 +1,28 @@
+{
+  "summary": "Evidence-backed answer (Ollama).",
+  "recommendation": "**Summary**\n\nMTI (Moving Target Indication) is a technique used in radar systems to detect and track moving targets by eliminating clutter and noise. Doppler technology helps MTI by analyzing the frequency shift of the returned radar signal, which indicates the target's velocity.\n\n**Recommendation**\n\nUsing Doppler technology is essential for effective MTI in radar systems. The double interaction of the transmitted signal with the moving target and the reflected signal provides a doubled Doppler frequency shift, allowing accurate velocity measurements.\n\n**Evidence Level: High**\n\nThe evidence provided supports the use of Doppler technology for MTI in radar systems, specifically for determining targets' velocities from stationary ones. This is evident from the analysis of Doppler frequency shifts using both pulsed and continuous-wave radars (C4). The principle remains the same whether the observer or source is moving, as stated in C3.\n\n**Evidence Tokens:**\n- [C1] - AAJ 5-6 (2025) 1608-1617\n- [C2] - Reference not provided\n- [C3] - https://doi.org/10.3390/s23187673\n- [C4] - https://doi.org/10.3390/s23187673",
+  "evidence_level": "Retrieved evidence",
+  "confidence_score": 0.73666453,
+  "citations": [
+    "[C1] sample.pdf page 9 (chunk=sample_p9_c1)",
+    "[C2] sample.pdf page 4 (chunk=sample_p4_c2)",
+    "[C3] sample.pdf page 4 (chunk=sample_p4_c3)",
+    "[C4] sample.pdf page 9 (chunk=sample_p9_c88)",
+    "[C5] sample.pdf page 4 (chunk=sample_p4_c4)"
+  ]
+}
+
+
+{
+  "summary": "Evidence-backed answer (Ollama).",
+  "recommendation": "**Summary**\n\nMTI (Moving Target Indication) is a technique used in radar systems to detect and track moving targets while eliminating clutter from stationary objects. Doppler radar is a type of radar that uses the Doppler effect to measure the velocity of targets. The Doppler effect describes how the frequency of waves changes when the source and observer are moving relative to each other.\n\n**Recommendation**\n\nUse Doppler radar for MTI applications, especially in situations where accurate range measurement and real-time monitoring are required. This is because Doppler radar can provide accurate velocity measurements and mitigate ambiguity and interference associated with traditional radar systems.\n\n**Evidence Level**\n\nHigh\n\n**Evidence**\n\n[C1] Acceleron Aerospace Journal (AAJ) article mentions that Doppler radar enables accurate velocity measurements and real-time monitoring, which is beneficial for MTI applications. [C2] The Doppler effect explanation by Christian Doppler in 1842 provides the fundamental principle behind Doppler radar. [C3] The article highlights the importance of considering relativistic Doppler formulas for higher velocities, but the principle remains the same. [C4] Sensors journal article discusses the use of Doppler shift in radar systems, including CW Doppler Radar, which can determine targets from stationary ones.\n\n[C5] This article provides a mathematical formula for the Doppler frequency shift in radar: 2f ′𝑑= (2ft 𝑑𝑉𝑐) = 2𝑉𝑟 𝜆, where λ is the transmitted wavelength.",
+  "evidence_level": "Retrieved evidence",
+  "confidence_score": 0.73666453,
+  "citations": [
+    "[C1] sample.pdf page 9 (chunk=sample_p9_c1)",
+    "[C2] sample.pdf page 4 (chunk=sample_p4_c2)",
+    "[C3] sample.pdf page 4 (chunk=sample_p4_c3)",
+    "[C4] sample.pdf page 9 (chunk=sample_p9_c88)",
+    "[C5] sample.pdf page 4 (chunk=sample_p4_c4)"
+  ]
+}

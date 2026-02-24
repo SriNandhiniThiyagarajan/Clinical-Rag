@@ -19,4 +19,31 @@ if COLLECTION_NAME not in existing:
 else: 
     print("Collection already exists:",COLLECTION_NAME)
 
-print("✅ Collections now:", [c.name for c in client.get_collections().collections])
+print("Collections now:", [c.name for c in client.get_collections().collections])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

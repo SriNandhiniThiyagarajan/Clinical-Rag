@@ -3,10 +3,12 @@ import fitz  # PyMuPDF
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
+import uuid
 
 PDF_PATH = Path("data/raw_pdfs/sample.pdf")
 COLLECTION_NAME = "clinical_chunks"
 
+#chunk the pdf
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[str]:
     text = " ".join(text.split())
     chunks = []
@@ -19,8 +21,8 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[st
 
 def main():
     if not PDF_PATH.exists():
-        print(f"❌ PDF not found at: {PDF_PATH.resolve()}")
-        print("✅ Put a PDF there and rename it to sample.pdf")
+        print(f"PDF not found at: {PDF_PATH.resolve()}")
+        print("Put a PDF there and rename it to sample.pdf")
         return
 
     # 1) Load embedding model
@@ -37,12 +39,11 @@ def main():
             collection_name=COLLECTION_NAME,
             vectors_config=qm.VectorParams(size=vector_size, distance=qm.Distance.COSINE),
         )
-        print(f"✅ Created Qdrant collection: {COLLECTION_NAME}")
+        print(f"Created Qdrant collection: {COLLECTION_NAME}")
 
     # 4) Read PDF pages
     doc = fitz.open(str(PDF_PATH))
     points = []
-    point_id = 1
 
     for page_index, page in enumerate(doc, start=1):
         text = page.get_text("text")
@@ -66,20 +67,19 @@ def main():
 
             points.append(
                 qm.PointStruct(
-                    id=point_id,
+                    id=str(uuid.uuid4()),
                     vector=vec.tolist(),
                     payload=payload,
                 )
             )
-            point_id += 1
 
     # 6) Upload to Qdrant
     if not points:
-        print("❌ No text chunks found in the PDF.")
+        print("No text chunks found in the PDF.")
         return
 
     client.upsert(collection_name=COLLECTION_NAME, points=points)
-    print(f"✅ Uploaded {len(points)} chunks to Qdrant from {PDF_PATH.name}")
+    print(f"Uploaded {len(points)} chunks to Qdrant from {PDF_PATH.name}")
 
 if __name__ == "__main__":
     main()
