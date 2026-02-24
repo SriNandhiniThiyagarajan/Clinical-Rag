@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import re
 
-from rag_retrieve import retrieve
+from hybrid_retrieve import retrieve_hybrid
 from ollama_llm import ollama_chat_json
 
 app = FastAPI()
@@ -32,7 +32,11 @@ def root():
 
 # ---------- Citation helpers ----------
 def only_uses_allowed_citations(text: str, max_k: int) -> bool:
-    # Finds all [Cnumber] tokens in the answer
+    """
+    Returns True only if:
+    - There is at least one [C#] token
+    - All tokens are within 1..max_k
+    """
     found = re.findall(r"\[C(\d+)\]", text)
     if not found:
         return False
@@ -43,8 +47,8 @@ def only_uses_allowed_citations(text: str, max_k: int) -> bool:
 def json_cites_valid(obj: dict, max_k: int = 5) -> bool:
     """
     Validate:
-    1) quotes[*].cite is C1..C5 (as "C1", not "[C1]")
-    2) summary + recommendation contain ONLY [C1]..[C5] and at least one citation
+    1) quotes[*].cite is "C1".."C5"
+    2) summary + recommendation contain ONLY [C1]..[C5] (and at least one)
     """
     try:
         quotes = obj.get("quotes", [])
@@ -54,10 +58,10 @@ def json_cites_valid(obj: dict, max_k: int = 5) -> bool:
         for q in quotes:
             if not isinstance(q, dict):
                 return False
-            cite = q.get("cite", "")
-            if not re.fullmatch(rf"C[1-{max_k}]", str(cite)):
+            cite = str(q.get("cite", "")).strip()
+            cite = cite.replace("[", "").replace("]", "")  # allow "[C1]" or "C1"
+            if not re.fullmatch(rf"C[1-{max_k}]", cite):
                 return False
-
         summary = str(obj.get("summary", ""))
         recommendation = str(obj.get("recommendation", ""))
         combined = summary + " " + recommendation
@@ -70,11 +74,10 @@ def json_cites_valid(obj: dict, max_k: int = 5) -> bool:
 # ---------- Main endpoint ----------
 @app.post("/query", response_model=QueryResponse)
 def query(req: QueryRequest):
-    # 1) Retrieve more, then keep top 5
-    hits = retrieve(req.question, k=10)
-    hits = hits[:5]
+    # 1) Hybrid retrieve
+    hits = retrieve_hybrid(req.question, k_vec=10, k_bm25=10, k_final=5)
 
-    # 2) Safety fallback: weak retrieval -> no answer
+    # 2) Safety fallback
     if not hits or hits[0]["score"] < 0.20:
         return QueryResponse(
             summary="Insufficient evidence found in the current database.",
@@ -89,20 +92,23 @@ def query(req: QueryRequest):
     evidence_lines: List[str] = []
 
     for i, h in enumerate(hits, start=1):
-        citations.append(
-            f"[C{i}] {h['doc_id']} page {h['page']} (chunk={h['chunk_id']})"
-        )
+        citations.append(f"[C{i}] {h['doc_id']} page {h['page']} (chunk={h['chunk_id']})")
         snippet = (h.get("text", "") or "").replace("\n", " ")
         snippet = snippet[:900]
         evidence_lines.append(f"[C{i}] {snippet}")
 
-    # 4) Strict JSON-only prompt
+    # 4) Strict JSON-only prompt (with explicit bracket rules + example)
     system = (
         "You are a clinical decision support assistant.\n"
         "Use ONLY the EVIDENCE provided.\n"
-        "Every factual claim must end with a citation token like [C1]..[C5].\n"
-        "Do NOT invent sources, URLs, DOIs, journals, or authors.\n"
+        "Do NOT invent sources, URLs, DOIs, journals, authors, or references.\n"
         "Do NOT expand acronyms unless the evidence explicitly defines the full form.\n"
+        "\n"
+        "CITATION RULES (VERY IMPORTANT):\n"
+        "- In 'summary' and 'recommendation', citations MUST be in square brackets like [C1].\n"
+        "- Do NOT write C1 without brackets.\n"
+        "- End every factual sentence with a bracket citation like ... [C2]\n"
+        "- You may ONLY use [C1]..[C5].\n"
         "\n"
         "Return ONLY valid JSON with this exact schema:\n"
         "{\n"
@@ -111,10 +117,16 @@ def query(req: QueryRequest):
         '  "recommendation": "...",\n'
         '  "evidence_level": "Low|Moderate|High"\n'
         "}\n"
-        "Rules:\n"
+        "\n"
+        "QUOTE RULES:\n"
         "- Provide 2 quotes maximum.\n"
-        "- Each quote must be copied from EVIDENCE and include cite C1..C5.\n"
-        "- In summary and recommendation, include [C#] at the end of every factual sentence.\n"
+        "- Each quote must be copied from EVIDENCE.\n"
+        "- Each quote must have cite exactly: C1..C5 (NO brackets in cite field).\n"
+        "\n"
+        "EXAMPLE JSON (follow this style):\n"
+        '{"quotes":[{"text":"Example quote.", "cite":"C1"}],'
+        '"summary":"Sentence. [C1]","recommendation":"Sentence. [C2]",'
+        '"evidence_level":"Moderate"}\n'
     )
 
     user = (
@@ -125,6 +137,7 @@ def query(req: QueryRequest):
     # 5) Call Ollama in JSON mode
     try:
         answer_obj = ollama_chat_json(system=system, user=user)
+        print("OLLAMA_JSON:", answer_obj)
     except Exception:
         return QueryResponse(
             summary="Insufficient evidence found in the current database.",
@@ -134,15 +147,22 @@ def query(req: QueryRequest):
             citations=citations,
         )
 
-    # 6) Validate citations strictly
     if not json_cites_valid(answer_obj, max_k=5):
-        return QueryResponse(
-            summary="Insufficient evidence found in the current database.",
-            recommendation="Model returned invalid JSON or invalid citations. Rejected for safety.",
-            evidence_level="N/A",
-            confidence_score=float(hits[0]["score"]),
-            citations=citations,
+        system_retry = system + (
+            "\nCRITICAL: Your JSON is INVALID unless BOTH 'summary' and 'recommendation' "
+            "contain at least one bracket citation like [C1]. Fix it now."
         )
+        answer_obj = ollama_chat_json(system=system_retry, user=user)
+        print("OLLAMA_JSON_RETRY:", answer_obj)
+
+        if not json_cites_valid(answer_obj, max_k=5):
+            return QueryResponse(
+                summary="Insufficient evidence found in the current database.",
+                recommendation="Model returned invalid JSON or invalid citations. Rejected for safety.",
+                evidence_level="N/A",
+                confidence_score=float(hits[0]["score"]),
+                citations=citations,
+            )
 
     # 7) Return structured response
     return QueryResponse(
